@@ -31,6 +31,13 @@ func WsWriter(data []byte) func(writer io.Writer) error {
 	}
 }
 
+func TcpWriter(p []byte) func(writer io.Writer) error {
+	return func(w io.Writer) error {
+		_, err := w.Write(p)
+		return err
+	}
+}
+
 func WebsocketReadFunc(fn func(p []byte)) ReadFunc {
 	return func(conn net.Conn) error {
 		h, r, err := wsutil.NextReader(conn, ws.StateClientSide)

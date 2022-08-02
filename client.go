@@ -23,11 +23,21 @@ func NewClient(dialFunc DialFunc, o ...Option) *Client {
 }
 
 func (c *Client) Send(ctx context.Context, data []byte) error {
-	conn, err := c.p.Get(ctx)
-	if err != nil {
+	var (
+		conn *Conn
+		err  error
+	)
+	if conn, err = c.p.Get(ctx); err != nil {
 		return err
 	}
-	return conn.WithWriter(ctx, 0, WsWriter(data))
+	defer c.p.Put(ctx, conn)
+
+	if c.opts.WriteFunc != nil {
+		err = conn.WithWriter(ctx, 0, c.opts.WriteFunc(data))
+	} else {
+		_, err = conn.Write(data)
+	}
+	return err
 }
 
 func (c *Client) Close() error {

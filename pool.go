@@ -3,8 +3,6 @@ package pool
 import (
 	"context"
 	"errors"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/mailru/easygo/netpoll"
 	"io"
 	"log"
@@ -245,37 +243,10 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 			return
 		}
 
-		go func() {
-			if p.opt.ReadFunc != nil {
-				if err = cn.WithReader(ctx, 0, p.opt.ReadFunc); err != nil {
-					p.poller.Stop(desc)
-					return
-				}
-			} else {
-				// default reader func is ws reader
-				err = cn.WithReader(ctx, 0, func(rd net.Conn) error {
-					h, r, err := wsutil.NextReader(cn.netConn, ws.StateClientSide)
-					if err != nil {
-						return err
-					}
-					if h.OpCode.IsControl() {
-						return wsutil.ControlFrameHandler(cn.netConn, ws.StateClientSide)(h, r)
-					}
-					data := make([]byte, h.Length)
-					if _, err = r.Read(data); err != nil {
-						return err
-					}
-					p.receiver <- data
-					return nil
-				})
-
-				if err != nil {
-					p.poller.Stop(desc)
-					return
-				}
-			}
-		}()
-
+		if err = cn.WithReader(ctx, 0, p.opt.ReadFunc); err != nil {
+			p.poller.Stop(desc)
+			return
+		}
 	}
 	return p.poller.Start(desc, eventHandle)
 }

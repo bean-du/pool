@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"io"
 	"net"
 	"time"
 )
@@ -9,6 +10,8 @@ import (
 type DialFunc func(context.Context) (net.Conn, error)
 
 type ReadFunc func(conn net.Conn) error
+
+type WriteFunc func(p []byte) func(w io.Writer) error
 
 type ReceiveHandler func(context.Context, []byte)
 
@@ -22,6 +25,7 @@ type Options struct {
 	ReceiveHandler ReceiveHandler
 	ReadFunc       ReadFunc
 	Keepalive      KeepAliveFunc
+	WriteFunc      WriteFunc
 
 	PoolFIFO           bool
 	PoolSize           int
@@ -35,6 +39,12 @@ type Options struct {
 func WithReadFunc(fn ReadFunc) Option {
 	return func(o *Options) {
 		o.ReadFunc = fn
+	}
+}
+
+func WithWriteFunc(fn WriteFunc) Option {
+	return func(o *Options) {
+		o.WriteFunc = fn
 	}
 }
 

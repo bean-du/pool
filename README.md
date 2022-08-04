@@ -9,30 +9,40 @@
 package main
 
 import (
-	"context"
-	"github.com/bean-du/pool"
-	"log"
-	"os"
-	"os/signal"
+    "context"
+    "github.com/bean-du/pool"
+    "log"
+    "os"
+    "os/signal"
+    "time"
 )
 
 func main() {
+
     sig := make(chan os.Signal, 1)
     signal.Notify(sig, os.Interrupt, os.Kill)
     
-    // init a pool with default options
+    // init a pool with options
     client := pool.NewClient(
         pool.WebsocketDialer("ws://127.0.0.1:8081/ws"),
+        // set pool size
         pool.WithPoolSize(50),
-        pool.WithPoolFIFO(true),
+        // set write func default is tcp writer
+        pool.WithWriteFunc(pool.WsWriter),
+        // set read func, must be set
         pool.WithReadFunc(pool.WebsocketReadFunc(dataHandleFunc)),
-        pool.WithMinIdleConns(5),
+        // set min idle connections
+        pool.WithMinIdleConns(10),
+        // set idle check duration
+        pool.WithIdleCheckFrequency(time.Second*10),
     )
 
     for i := 0; i < 10; i++ {
-        if err := client.Send(context.Background(), []byte("hello")); err != nil {
-         log.Println(err)
-        }
+        go func() {
+            if err := client.Send(context.Background(), []byte("hello")); err != nil {
+                log.Println(err)
+            }
+        }()
     }
 
     select {
@@ -42,6 +52,9 @@ func main() {
 }
 
 func dataHandleFunc(p []byte) {
-    log.Println(string(p))
+    go func() {
+        log.Println(string(p))
+    }()
 }
+
 ```

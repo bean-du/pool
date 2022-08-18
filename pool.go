@@ -239,7 +239,7 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 	)
 	eventHandle := func(event netpoll.Event) {
 		if event&(netpoll.EventHup|netpoll.EventReadHup) != 0 {
-			p.poller.Stop(desc)
+			p.closeConn(cn)
 			return
 		}
 
@@ -443,11 +443,21 @@ func (p *ConnPool) removeConn(cn *Conn) {
 }
 
 func (p *ConnPool) closeConn(cn *Conn) error {
+	var (
+		err  error
+		desc *netpoll.Desc
+	)
 	if p.opt.OnClose != nil {
 		_ = p.opt.OnClose(cn)
 	}
-	desc := netpoll.Must(netpoll.HandleRead(cn.netConn))
-	p.poller.Stop(desc)
+
+	if desc, err = netpoll.HandleRead(cn.netConn); err != nil {
+		log.Println("netpoll get desc error:", err)
+	} else {
+		if err = p.poller.Stop(desc); err != nil {
+			log.Println("netpoll stop error:", err)
+		}
+	}
 	return cn.Close()
 }
 

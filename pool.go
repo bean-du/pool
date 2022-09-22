@@ -3,7 +3,6 @@ package pool
 import (
 	"context"
 	"errors"
-	"github.com/mailru/easygo/netpoll"
 	"io"
 	"log"
 	"net"
@@ -11,6 +10,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/mailru/easygo/netpoll"
 )
 
 var (
@@ -242,7 +243,9 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 	)
 
 	addr := cn.netConn.LocalAddr().String()
+	p.registerMu.Lock()
 	p.registeredDesc[addr] = desc
+	p.registerMu.Unlock()
 
 	eventHandle := func(event netpoll.Event) {
 		if event&(netpoll.EventHup|netpoll.EventReadHup) != 0 {

@@ -43,3 +43,11 @@ func (c *Client) Send(ctx context.Context, data []byte) error {
 func (c *Client) Close() error {
 	return c.p.Close()
 }
+
+type PoolStats Stats
+
+// PoolStats returns connection pool stats.
+func (c *Client) PoolStats() *PoolStats {
+	stats := c.p.Stats()
+	return (*PoolStats)(stats)
+}

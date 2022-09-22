@@ -25,6 +25,8 @@ func main() {
 		pool.WithReadFunc(pool.WebsocketReadFunc(dataHandleFunc)),
 		// set min idle connections
 		pool.WithMinIdleConns(10),
+
+		pool.WithPoolTimeout(5*time.Second),
 		// set idle check duration
 		pool.WithIdleCheckFrequency(time.Second*10),
 	)

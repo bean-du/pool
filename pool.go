@@ -64,8 +64,10 @@ type lastDialErrorWrap struct {
 type ConnPool struct {
 	opt *Options
 
-	poller        netpoll.Poller
-	dialErrorsNum uint32 // atomic
+	poller         netpoll.Poller
+	registerMu     sync.Mutex
+	registeredDesc map[string]*netpoll.Desc
+	dialErrorsNum  uint32 // atomic
 
 	lastDialError atomic.Value
 
@@ -90,15 +92,16 @@ func NewConnPool(opt *Options) *ConnPool {
 	p := &ConnPool{
 		opt: opt,
 
-		queue:     make(chan struct{}, opt.PoolSize),
-		conns:     make([]*Conn, 0, opt.PoolSize),
-		idleConns: make([]*Conn, 0, opt.PoolSize),
-		closedCh:  make(chan struct{}),
-		receiver:  make(chan []byte, 1),
+		queue:          make(chan struct{}, opt.PoolSize),
+		conns:          make([]*Conn, 0, opt.PoolSize),
+		closedCh:       make(chan struct{}),
+		receiver:       make(chan []byte, 1),
+		idleConns:      make([]*Conn, 0, opt.PoolSize),
+		registeredDesc: make(map[string]*netpoll.Desc),
 	}
 
 	p.connsMu.Lock()
-	p.checkMinIdleConns()
+	go p.checkMinIdleConns()
 	p.connsMu.Unlock()
 
 	poller, _ := netpoll.New(nil)
@@ -237,6 +240,10 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 		err  error
 		desc = netpoll.Must(netpoll.HandleRead(cn.netConn))
 	)
+
+	addr := cn.netConn.LocalAddr().String()
+	p.registeredDesc[addr] = desc
+
 	eventHandle := func(event netpoll.Event) {
 		if event&(netpoll.EventHup|netpoll.EventReadHup) != 0 {
 			p.closeConn(cn)
@@ -444,6 +451,7 @@ func (p *ConnPool) removeConn(cn *Conn) {
 
 func (p *ConnPool) closeConn(cn *Conn) error {
 	var (
+		ok   bool
 		err  error
 		desc *netpoll.Desc
 	)
@@ -451,13 +459,16 @@ func (p *ConnPool) closeConn(cn *Conn) error {
 		_ = p.opt.OnClose(cn)
 	}
 
-	if desc, err = netpoll.HandleRead(cn.netConn); err != nil {
-		log.Println("netpoll get desc error:", err)
-	} else {
+	p.registerMu.Lock()
+	defer p.registerMu.Unlock()
+	if desc, ok = p.registeredDesc[cn.netConn.LocalAddr().String()]; ok {
 		if err = p.poller.Stop(desc); err != nil {
 			log.Println("netpoll stop error:", err)
 		}
+
+		delete(p.registeredDesc, cn.netConn.LocalAddr().String())
 	}
+
 	return cn.Close()
 }
 

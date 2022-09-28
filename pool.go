@@ -254,6 +254,7 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 
 	eventHandle := func(event netpoll.Event) {
 		if event&(netpoll.EventHup|netpoll.EventReadHup) != 0 {
+			p.log.Error("connection closed by peer")
 			err = p.closeConn(cn)
 			if err != nil {
 				p.log.Error("closeConn error:", err)

@@ -1,13 +1,8 @@
 package pool
 
-import "context"
-
 type Fields map[string]interface{}
 
 type Logger interface {
-	WithField(key string, value interface{}) Logger
-	WithFields(fields Fields) Logger
-	WithContext(ctx context.Context) Logger
 	Trace(args ...interface{})
 	Tracef(format string, args ...interface{})
 	Debug(args ...interface{})

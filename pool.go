@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -159,6 +158,7 @@ func (p *ConnPool) checkMinIdleConns() {
 func (p *ConnPool) addIdleConn() error {
 	cn, err := p.dialConn(context.TODO(), true)
 	if err != nil {
+		p.log.Error("addIdleConn error:", err)
 		return err
 	}
 
@@ -183,6 +183,7 @@ func (p *ConnPool) NewConn(ctx context.Context) (*Conn, error) {
 func (p *ConnPool) newConn(ctx context.Context, pooled bool) (*Conn, error) {
 	cn, err := p.dialConn(ctx, pooled)
 	if err != nil {
+		p.log.Error("dialConn error:", err)
 		return nil, err
 	}
 
@@ -229,6 +230,7 @@ func (p *ConnPool) dialConn(ctx context.Context, pooled bool) (*Conn, error) {
 	cn.pooled = pooled
 
 	if err = p.addPoller(ctx, cn); err != nil {
+		p.log.Error("addPoller error:", err)
 		return nil, err
 	}
 
@@ -252,12 +254,18 @@ func (p *ConnPool) addPoller(ctx context.Context, cn *Conn) error {
 
 	eventHandle := func(event netpoll.Event) {
 		if event&(netpoll.EventHup|netpoll.EventReadHup) != 0 {
-			p.closeConn(cn)
+			err = p.closeConn(cn)
+			if err != nil {
+				p.log.Error("closeConn error:", err)
+			}
 			return
 		}
 
 		if err = cn.WithReader(ctx, 0, p.opt.ReadFunc); err != nil {
-			p.poller.Stop(desc)
+			err = p.poller.Stop(desc)
+			if err != nil {
+				p.log.Error("poller Stop error:", err)
+			}
 			return
 		}
 	}
@@ -408,7 +416,7 @@ func (p *ConnPool) popIdle() (*Conn, error) {
 
 func (p *ConnPool) Put(ctx context.Context, cn *Conn) {
 	if cn.reader.Buffered() > 0 {
-		log.Println("Conn has unread data")
+		p.log.Error("Conn has unread data")
 		p.Remove(ctx, cn, errors.New("conn is in a bad sate"))
 		return
 	}
@@ -469,7 +477,7 @@ func (p *ConnPool) closeConn(cn *Conn) error {
 	defer p.registerMu.Unlock()
 	if desc, ok = p.registeredDesc[cn.netConn.LocalAddr().String()]; ok {
 		if err = p.poller.Stop(desc); err != nil {
-			log.Println("netpoll stop error:", err)
+			p.log.Error("netpoll stop error:", err)
 		}
 
 		delete(p.registeredDesc, cn.netConn.LocalAddr().String())
@@ -563,7 +571,7 @@ func (p *ConnPool) reaper(frequency time.Duration) {
 			}
 			_, err := p.ReapStaleConns()
 			if err != nil {
-				log.Println("ReapStaleConns failed:", err)
+				p.log.Error("ReapStaleConns failed:", err)
 				continue
 			}
 		case <-p.closedCh:

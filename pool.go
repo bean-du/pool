@@ -84,11 +84,13 @@ type ConnPool struct {
 
 	_closed  uint32 // atomic
 	closedCh chan struct{}
+
+	log Logger
 }
 
 var _ Pooler = (*ConnPool)(nil)
 
-func NewConnPool(opt *Options) *ConnPool {
+func NewConnPool(opt *Options, logger Logger) *ConnPool {
 	p := &ConnPool{
 		opt: opt,
 
@@ -98,6 +100,7 @@ func NewConnPool(opt *Options) *ConnPool {
 		receiver:       make(chan []byte, 1),
 		idleConns:      make([]*Conn, 0, opt.PoolSize),
 		registeredDesc: make(map[string]*netpoll.Desc),
+		log:            logger,
 	}
 
 	p.connsMu.Lock()

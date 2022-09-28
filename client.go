@@ -9,13 +9,13 @@ type Client struct {
 	opts *Options
 }
 
-func NewClient(dialFunc DialFunc, o ...Option) *Client {
+func NewClient(dialFunc DialFunc, log Logger, o ...Option) *Client {
 	opts := &Options{Dialer: dialFunc}
 	for _, fn := range o {
 		fn(opts)
 	}
 
-	p := NewConnPool(opts)
+	p := NewConnPool(opts, log)
 	return &Client{
 		p:    p,
 		opts: opts,

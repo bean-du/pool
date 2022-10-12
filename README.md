@@ -25,6 +25,8 @@ func main() {
     // init a pool with options
     client := pool.NewClient(
         pool.WebsocketDialer("ws://127.0.0.1:8081/ws"),
+        // log instance
+        nil,
         // set pool size
         pool.WithPoolSize(50),
         // set write func default is tcp writer
